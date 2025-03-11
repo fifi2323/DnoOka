@@ -7,12 +7,12 @@ import time
 import joblib
 from skimage.feature import hog
 from skimage.measure import moments_central, moments_hu
+from skimage.filters import frangi
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 import cv2
-from PIL import Image
 
 class DnoOka:
     def __init__(self, root):
@@ -21,7 +21,11 @@ class DnoOka:
         self.root.title("Symulator Tomografu Komputerowego")
 
         # Wczytanie modelu
-        self.clf = joblib.load(".venv/random_forest_modell.pkl")
+        try:
+            self.clf = joblib.load(".venv/random_forest_model.pkl")
+        except FileNotFoundError:
+            print("Nie znaleziono modelu! Upewnij się, że plik modelu jest w odpowiedniej lokalizacji.")
+
 
         # Ramka na wczytywanie obrazu i parametry
         self.control_frame = tk.Frame(root)
@@ -39,27 +43,123 @@ class DnoOka:
         self.load_button = Button(self.control_frame, text="Wczytaj obraz", command=self.load_image)
         self.load_button.grid(row=0, column=0, padx=5, pady=5)
 
+        # Przycisk do generowania predykcji
+        self.pred_button = Button(self.control_frame, text="Znajdź naczynia", command=self.processing_method_choice)
+        self.pred_button.grid(row=0, column=1, padx=5, pady=5)
+
         # Przycisk do zapisywania obrazu
         self.save_button = Button(self.control_frame, text="Zapisz obraz", command=self.save_image)
         self.save_button.grid(row=0, column=2, padx=5, pady=5)
 
-        # Przycisk do generowania predykcji
-        self.pred_button = Button(self.control_frame, text="Znajdź naczynia", command=self.predict)
-        self.pred_button.grid(row=0, column=1, padx=5, pady=5)
+        # Wybór sposobu przetwarzania
+        # Etykieta obok listy
+        tk.Label(self.control_frame, text="Wybór sposobu przetwarzania:").grid(row=1, column=0, padx=5, pady=5)
+
+        # Zmienna przechowująca wybraną wartość (string)
+        self.processing_var = tk.StringVar()
+
+        # Definiujemy Combobox z czterema opcjami
+        self.filter_combobox = ttk.Combobox(
+            self.control_frame,
+            textvariable=self.processing_var,
+            values=["1 - filtr  Frangi’ego - 3.0", "2 - gotowy klasyfiklator - 4.0", "3 - głęboka sieć neuronowa - 5.0"],
+            state="readonly"
+        )
+        self.filter_combobox.grid(row=1, column=1, padx=5, pady=5)
+        self.filter_combobox.current(0)  # Ustawiamy domyślnie pierwszą opcję ("0 - brak")
 
         # Canvas do wyświetlania oryginalnego obrazu
         self.original_picture_canvas = Canvas(self.image_frame, width=400, height=400, bg="black")
         self.original_picture_canvas.grid(row=0, column=0, padx=15, pady=10)
-        Label(self.image_frame, text="Oryginalny obraz").grid(row=1, column=0)
+        Label(self.image_frame, text="Oryginalny obraz").grid(row=2, column=0)
 
         # Canvas do wyświetlania obrazu po predykcji
         self.prediction_picture_canvas = Canvas(self.image_frame_pred, width=400, height=400, bg="black")
         self.prediction_picture_canvas.grid(row=0, column=0, padx=15, pady=10)
-        Label(self.image_frame_pred, text="Obraz po predykcji").grid(row=1, column=0)
+        Label(self.image_frame_pred, text="Obraz po predykcji").grid(row=3, column=0)
 
         self.image = None
         self.image_array = None
         self.reconstructed_image = None
+
+    def processing_method_choice(self):
+        selected_method = self.processing_var.get()
+        selected_method_num = int(selected_method.split("-")[0].strip())
+
+        if selected_method_num == 1:
+            self.show_frangi_result()
+        elif selected_method == 2:
+            self.predict()
+
+        return
+
+
+    def preprocess_image(self, image_array):
+        """
+        Wstępne przetwarzanie obrazu:
+          - Konwersja do skali szarości.
+          - Rozmycie Gaussa (redukcja szumu).
+          - Normalizacja histogramu (wyrównanie kontrastu).
+          - Wyostrzenie obrazu.
+        """
+
+        gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+        eq = cv2.equalizeHist(blurred)
+
+        kernel_sharpen = np.array([[0, -1, 0],
+                                   [-1, 5, -1],
+                                   [0, -1, 0]])
+        sharpened = cv2.filter2D(eq, -1, kernel_sharpen)
+        return sharpened
+
+    def frangi_extract_vessels(self, preprocessed_image):
+        """
+        Właściwe przetwarzanie obrazu:
+         - Zastosowanie filtru Frangi'ego do wykrycia naczyń.
+        """
+        normalized = preprocessed_image / 255.0
+        vessel_enhanced = frangi(normalized)
+        return vessel_enhanced
+
+    def frangi_postprocess_vessel_image(self, vessel_image, threshold=0.2):
+        """
+        Końcowe przetwarzanie obrazu:
+          - Progowanie wzmocnionego obrazu w celu uzyskania binarnej maski.
+          - Operacje morfologiczne (otwarcie i zamknięcie) dla redukcji szumów.
+        Zwraca binarną maskę wykrytych naczyń.
+        """
+        binary_mask = (vessel_image > threshold).astype(np.uint8) * 255
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        opened = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
+        closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+        return closed
+
+    def show_frangi_result(self):
+        # Wywołanie pipeline'u filtru Frangi – poprawne nazwy funkcji
+        preprocessed = self.preprocess_image(self.image_array)
+        vessel_enhanced = self.frangi_extract_vessels(preprocessed)
+        mask = self.frangi_postprocess_vessel_image(vessel_enhanced, threshold=0.01)
+
+        # Konwersja do formatu PIL
+        result_image = Image.fromarray(mask)
+
+        # Skalowanie do rozmiaru canvasa
+        max_canvas_size = 400
+        img_width, img_height = result_image.size
+        scale = min(max_canvas_size / img_width, max_canvas_size / img_height)
+        new_size = (int(img_width * scale), int(img_height * scale))
+        result_resized = result_image.resize(new_size)
+
+        # Konwersja na PhotoImage i aktualizacja canvasa
+        self.predicted_image = ImageTk.PhotoImage(result_resized)
+        self.prediction_picture_canvas.delete("all")
+        canvas_width = self.prediction_picture_canvas.winfo_width()
+        canvas_height = self.prediction_picture_canvas.winfo_height()
+        self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,
+                                                    image=self.predicted_image, anchor=tk.CENTER)
 
     def extract_features(self, image):
         """ Ekstrakcja cech z wycinka obrazu """
