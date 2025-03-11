@@ -12,15 +12,16 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 import cv2
-
+from PIL import Image
 
 class DnoOka:
     def __init__(self, root):
+        self.predicted_image = None
         self.root = root
         self.root.title("Symulator Tomografu Komputerowego")
 
         # Wczytanie modelu
-        self.clf = joblib.load(".venv/random_forest_model.pkl")
+        self.clf = joblib.load(".venv/random_forest_modell.pkl")
 
         # Ramka na wczytywanie obrazu i parametry
         self.control_frame = tk.Frame(root)
@@ -37,6 +38,10 @@ class DnoOka:
         # Przycisk do wczytywania obrazu
         self.load_button = Button(self.control_frame, text="Wczytaj obraz", command=self.load_image)
         self.load_button.grid(row=0, column=0, padx=5, pady=5)
+
+        # Przycisk do zapisywania obrazu
+        self.save_button = Button(self.control_frame, text="Zapisz obraz", command=self.save_image)
+        self.save_button.grid(row=0, column=2, padx=5, pady=5)
 
         # Przycisk do generowania predykcji
         self.pred_button = Button(self.control_frame, text="Znajdź naczynia", command=self.predict)
@@ -82,6 +87,7 @@ class DnoOka:
 
         # Połączenie cech w jeden wektor
         features = [variance_r, variance_g, variance_b, central_moment] + list(hu_moments) + list(hog_features[:10])
+
         return features
 
     def predict(self):
@@ -92,6 +98,7 @@ class DnoOka:
         # Rozdzielamy obraz na fragmenty i wyciągamy cechy
         window_size = 8
         features = []
+        print(self.image_array.shape)
         for i in range(4, self.image_array.shape[0] - 4, window_size):
             for j in range(4, self.image_array.shape[1] - 4, window_size):
                 feature = self.extract_features(self.image_array[i - 4:i + 4, j - 4:j + 4])  # 8x8 okno
@@ -100,28 +107,49 @@ class DnoOka:
         features = np.array(features)
 
         # Predykcja
+        print(features.shape)
         predictions = self.clf.predict(features)
+        print("Unikalne wartości predykcji:", np.unique(predictions))
 
-        # Zbudowanie obrazu z predykcjami
-        prediction_image = np.zeros(self.image_array.shape)
+
+        # Przekształcenie predictions do uint8 przed użyciem
+        predictions = predictions.astype(np.uint8)
+
+        # Inicjalizacja obrazu predykcji (bez wartości w 3 kanałach kolorów)
+        prediction_image = np.zeros(self.image_array.shape[:2], dtype=np.uint8)
+
         index = 0
         for i in range(4, self.image_array.shape[0] - 4, window_size):
             for j in range(4, self.image_array.shape[1] - 4, window_size):
-                prediction_image[i:i + window_size, j:j + window_size] = predictions[index]  # Przydziel predykcję
+                prediction_image[i:i + window_size, j:j + window_size] = predictions[index]
                 index += 1
-        print(prediction_image)
-        # Konwertowanie obrazu predykcji do formatu wyświetlania
-        predicted_image_pil = Image.fromarray(np.uint8(prediction_image * 255))  # Zamiana na 0-255
-        self.predicted_image = ImageTk.PhotoImage(predicted_image_pil)
-        # Wyświetlanie obrazu po predykcji
+
+        # Konwersja do formatu PIL
+        self.predicted_image_pil = Image.fromarray(prediction_image)
+
+        # Dopasowanie rozmiaru obrazu do wyświetlania
+        max_canvas_size = 400
+        img_width, img_height = self.predicted_image_pil.size
+        scale = min(max_canvas_size / img_width, max_canvas_size / img_height)
+        new_size = (int(img_width * scale), int(img_height * scale))
+
+        predicted_display_image = self.predicted_image_pil.resize(new_size)
+        self.predicted_image = ImageTk.PhotoImage(predicted_display_image)
+
+        # Upewnienie się, że Canvas ma poprawne wymiary
+        self.root.update()
+        canvas_width = self.prediction_picture_canvas.winfo_width()
+        canvas_height = self.prediction_picture_canvas.winfo_height()
+
         self.prediction_picture_canvas.delete("all")
-        self.prediction_picture_canvas.create_image(200, 200, image=self.predicted_image, anchor=tk.CENTER)
-        print("finished")
+        self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,
+                                                    image=self.predicted_image, anchor=tk.CENTER)
+    def save_image(self):  # Convert NumPy array to PIL Image
+        self.predicted_image_pil.save('plik.png')  # Save the image
     def load_image(self):
         file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.bmp;*.dcm")])
         if not file_path:
             return
-        from PIL import Image
         image = Image.open(file_path)
         self.image_array = np.array(image)
         self.image = ImageTk.PhotoImage(image)

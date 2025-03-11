@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
-
+import joblib
 def extract_features(image):
     """ Ekstrakcja cech z wycinka obrazu """
     # Wariancja kolorów
@@ -37,18 +37,20 @@ def extract_features(image):
 
     # Połączenie cech w jeden wektor
     features = [variance_r, variance_g, variance_b, central_moment] + list(hu_moments) + list(hog_features[:10])
+
+
     return features
 
 X = []  # cechy
 y = []  # etykiety
 
-image_files = sorted(glob.glob("healthy/*.jpg"))  # Ścieżka do obrazów
-mask_files = sorted(glob.glob("healthy_fovmask/*.tif"))  # Ścieżka do masek eksperckich
+image_files = sorted(glob.glob("healthy/01_h.jpg"))  # Ścieżka do obrazów
+mask_files = sorted(glob.glob("healthy_vains/01_h.tif"))  # Ścieżka do masek eksperckich
 
 for img_path, mask_path in zip(image_files, mask_files):
     image = cv2.imread(img_path)
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-    num_samples = 5000  # Maksymalna liczba próbek na obraz
+    num_samples = 500000  # Maksymalna liczba próbek na obraz
     sampled_points = np.random.randint(4, image.shape[0] - 4, size=(num_samples, 2))
 
     for i, j in sampled_points:
@@ -65,6 +67,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 
 # Trening klasyfikatora (las losowy)
 clf = RandomForestClassifier(n_estimators=100, random_state=42)
+
 clf.fit(X_train, y_train)
 
 # Predykcja i ocena modelu
