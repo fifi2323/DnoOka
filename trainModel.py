@@ -9,6 +9,29 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 import joblib
+from sklearn.decomposition import PCA
+def global_contrast_normalization(image):
+    """Normalizacja globalnego kontrastu obrazu"""
+    # Obliczenie średniej i odchylenia standardowego
+    mean = np.mean(image)
+    std = np.std(image)
+    normalized_image = (image - mean) / std
+    return normalized_image
+
+def zero_phase_component_analysis(image):
+    """Zero-Phase Component Analysis (ZPCA)"""
+    # ZPCA wymaga uśredniania i centrowania obrazu
+    mean = np.mean(image, axis=(0, 1), keepdims=True)
+    centered_image = image - mean
+
+    # Wykorzystanie PCA do analizy składników obrazu
+    pca = PCA(n_components=image.shape[2])
+    pca.fit(centered_image.reshape(-1, image.shape[2]))
+    transformed_image = pca.transform(centered_image.reshape(-1, image.shape[2]))
+    zpca_image = pca.inverse_transform(transformed_image).reshape(image.shape)
+
+    return zpca_image
+
 def extract_features(image):
     """ Ekstrakcja cech z wycinka obrazu """
     # Wariancja kolorów

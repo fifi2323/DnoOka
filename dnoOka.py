@@ -15,7 +15,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 import cv2
-
+from skimage.morphology import opening, closing, footprint_rectangle
 class DnoOka:
     def __init__(self, root):
         self.predicted_image = None
@@ -64,7 +64,7 @@ class DnoOka:
         self.filter_combobox = ttk.Combobox(
             self.control_frame,
             textvariable=self.processing_var,
-            values=["1 - filtr  Frangi’ego - 3.0", "2 - gotowy klasyfiklator - 4.0", "3 - głęboka sieć neuronowa - 5.0"],
+            values=["1 - filtr  Frangi’ego - 3.0", "2 - gotowy klasyfiklator - 4.0", "3 - głęboka sieć neuronowa - 5.0", "4 - Odszumianie gotowego obrazu - cos"],
             state="readonly"
         )
         self.filter_combobox.grid(row=1, column=1, padx=5, pady=5)
@@ -92,7 +92,8 @@ class DnoOka:
             self.show_frangi_result()
         elif selected_method_num == 2:
             self.predict()
-
+        elif selected_method_num == 4:
+            self.pure_postprocessing(self.image_array)
         return
 
 
@@ -212,6 +213,39 @@ class DnoOka:
 
         return features
 
+    def pure_postprocessing(self, prediction_image):
+        """ Usuwanie szumu z obrazu predykcji """
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        opened = cv2.morphologyEx(prediction_image, cv2.MORPH_OPEN, kernel)
+        closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+
+
+        # Konwersja do formatu PIL
+        self.predicted_image_pil = Image.fromarray(closed)
+
+        # Dopasowanie rozmiaru obrazu do wyświetlania
+        max_canvas_size = 400
+        img_width, img_height = self.predicted_image_pil.size
+        scale = min(max_canvas_size / img_width, max_canvas_size / img_height)
+        new_size = (int(img_width * scale), int(img_height * scale))
+
+        predicted_display_image = self.predicted_image_pil.resize(new_size)
+        self.predicted_image = ImageTk.PhotoImage(predicted_display_image)
+
+        # Upewnienie się, że Canvas ma poprawne wymiary
+        self.root.update()
+        canvas_width = self.prediction_picture_canvas.winfo_width()
+        canvas_height = self.prediction_picture_canvas.winfo_height()
+
+        self.prediction_picture_canvas.delete("all")
+        self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,
+                                                    image=self.predicted_image, anchor=tk.CENTER)
+        return
+    def random_forest_postprocessing(self, prediction_image):
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        opened = cv2.morphologyEx(prediction_image, cv2.MORPH_OPEN, kernel)
+        closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+        return closed
     def predict(self):
         """ Przewidywanie na podstawie modelu i wyświetlanie wyników """
         if self.image_array is None:
@@ -220,11 +254,14 @@ class DnoOka:
         # Rozdzielamy obraz na fragmenty i wyciągamy cechy
         window_size = 8
         features = []
+        indices = []
         print(self.image_array.shape)
         for i in range(4, self.image_array.shape[0] - 4, 2):
             for j in range(4, self.image_array.shape[1] - 4, 2):
-                feature = self.extract_features(self.image_array[i - 4:i + 4, j - 4:j + 4])  # 8x8 okno
-                features.append(feature)
+                if sum(self.image_array[i, j, :]) != 0:
+                    feature = self.extract_features(self.image_array[i - 4:i + 4, j - 4:j + 4])  # 8x8 okno
+                    features.append(feature)
+                    indices.append([i, j])
             print(i)
         features = np.array(features)
 
@@ -233,21 +270,26 @@ class DnoOka:
         predictions = self.clf.predict(features)
         print("Unikalne wartości predykcji:", np.unique(predictions))
 
-
         # Przekształcenie predictions do uint8 przed użyciem
         predictions = predictions.astype(np.uint8)
 
-        # Inicjalizacja obrazu predykcji (bez wartości w 3 kanałach kolorów)
+        # Inicjalizacja obrazu predykcji
         prediction_image = np.zeros(self.image_array.shape[:2], dtype=np.uint8)
 
-        index = 0
-        for i in range(4, self.image_array.shape[0] - 4, 2):
-            for j in range(4, self.image_array.shape[1] - 4, 2):
-                prediction_image[i:i + 2, j:j + 2] = predictions[index]
-                index += 1
+        for index, prediction in zip(indices, predictions):
+            try:
+                i =index[0]
+                j = index[1]
+                prediction_image[i:i + 2, j:j + 2] = prediction
+            except IndexError:
+                pass
+
+        # Postprocessing - usunięcie szumu
+        prediction_image = self.random_forest_postprocessing(prediction_image)
 
         stop = time.time()
         print(f"Czas przetwarzania: {stop - start}")
+
         # Konwersja do formatu PIL
         self.predicted_image_pil = Image.fromarray(prediction_image)
 
