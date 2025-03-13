@@ -1,0 +1,214 @@
+Index: dnoOka.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import tkinter as tk\r\nfrom tkinter import ttk, filedialog, Label, Button, Canvas, Checkbutton, IntVar, DoubleVar, StringVar, Entry, simpledialog\r\nfrom PIL import Image, ImageTk\r\nimport numpy as np\r\nfrom numpy.fft import fft, ifft, fftfreq\r\nimport time\r\nimport joblib\r\nfrom skimage.feature import hog\r\nfrom skimage.measure import moments_central, moments_hu\r\nfrom skimage.filters import frangi\r\nfrom sklearn.model_selection import train_test_split\r\nfrom sklearn.ensemble import RandomForestClassifier\r\nfrom sklearn.svm import SVC\r\nfrom sklearn.metrics import accuracy_score\r\nimport cv2\r\n\r\nclass DnoOka:\r\n    def __init__(self, root):\r\n        self.predicted_image = None\r\n        self.root = root\r\n        self.root.title(\"Symulator Tomografu Komputerowego\")\r\n\r\n        # Wczytanie modelu\r\n        try:\r\n            self.clf = joblib.load(\".venv/random_forest_model.pkl\")\r\n        except FileNotFoundError:\r\n            print(\"Nie znaleziono modelu! Upewnij się, że plik modelu jest w odpowiedniej lokalizacji.\")\r\n\r\n\r\n        # Ramka na wczytywanie obrazu i parametry\r\n        self.control_frame = tk.Frame(root)\r\n        self.control_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)\r\n\r\n        # Ramka do wyświetlania obrazów\r\n        self.image_frame = tk.Frame(root)\r\n        self.image_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)\r\n\r\n        # Ramka do wyświetlania predykcji\r\n        self.image_frame_pred = tk.Frame(root)\r\n        self.image_frame_pred.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)\r\n\r\n        # Przycisk do wczytywania obrazu\r\n        self.load_button = Button(self.control_frame, text=\"Wczytaj obraz\", command=self.load_image)\r\n        self.load_button.grid(row=0, column=0, padx=5, pady=5)\r\n\r\n        # Przycisk do generowania predykcji\r\n        self.pred_button = Button(self.control_frame, text=\"Znajdź naczynia\", command=self.processing_method_choice)\r\n        self.pred_button.grid(row=0, column=1, padx=5, pady=5)\r\n\r\n        # Przycisk do zapisywania obrazu\r\n        self.save_button = Button(self.control_frame, text=\"Zapisz obraz\", command=self.save_image)\r\n        self.save_button.grid(row=0, column=2, padx=5, pady=5)\r\n\r\n        # Wybór sposobu przetwarzania\r\n        # Etykieta obok listy\r\n        tk.Label(self.control_frame, text=\"Wybór sposobu przetwarzania:\").grid(row=1, column=0, padx=5, pady=5)\r\n\r\n        # Zmienna przechowująca wybraną wartość (string)\r\n        self.processing_var = tk.StringVar()\r\n\r\n        # Definiujemy Combobox z czterema opcjami\r\n        self.filter_combobox = ttk.Combobox(\r\n            self.control_frame,\r\n            textvariable=self.processing_var,\r\n            values=[\"1 - filtr  Frangi’ego - 3.0\", \"2 - gotowy klasyfiklator - 4.0\", \"3 - głęboka sieć neuronowa - 5.0\"],\r\n            state=\"readonly\"\r\n        )\r\n        self.filter_combobox.grid(row=1, column=1, padx=5, pady=5)\r\n        self.filter_combobox.current(0)  # Ustawiamy domyślnie pierwszą opcję (\"0 - brak\")\r\n\r\n        # Canvas do wyświetlania oryginalnego obrazu\r\n        self.original_picture_canvas = Canvas(self.image_frame, width=400, height=400, bg=\"black\")\r\n        self.original_picture_canvas.grid(row=0, column=0, padx=15, pady=10)\r\n        Label(self.image_frame, text=\"Oryginalny obraz\").grid(row=2, column=0)\r\n\r\n        # Canvas do wyświetlania obrazu po predykcji\r\n        self.prediction_picture_canvas = Canvas(self.image_frame_pred, width=400, height=400, bg=\"black\")\r\n        self.prediction_picture_canvas.grid(row=0, column=0, padx=15, pady=10)\r\n        Label(self.image_frame_pred, text=\"Obraz po predykcji\").grid(row=3, column=0)\r\n\r\n        self.image = None\r\n        self.image_array = None\r\n        self.reconstructed_image = None\r\n\r\n    def processing_method_choice(self):\r\n        selected_method = self.processing_var.get()\r\n        selected_method_num = int(selected_method.split(\"-\")[0].strip())\r\n\r\n        if selected_method_num == 1:\r\n            self.show_frangi_result()\r\n        elif selected_method_num == 2:\r\n            self.predict()\r\n\r\n        return\r\n\r\n\r\n    def preprocess_image(self, image_array):\r\n        \"\"\"\r\n        Wstępne przetwarzanie obrazu:\r\n          - Konwersja do skali szarości.\r\n          - Rozmycie Gaussa (redukcja szumu).\r\n          - Normalizacja histogramu (wyrównanie kontrastu).\r\n          - Wyostrzenie obrazu.\r\n        \"\"\"\r\n\r\n        gray = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)\r\n\r\n        blurred = cv2.GaussianBlur(gray, (5, 5), 0)\r\n\r\n        eq = cv2.equalizeHist(blurred)\r\n\r\n        kernel_sharpen = np.array([[0, -1, 0],\r\n                                   [-1, 5, -1],\r\n                                   [0, -1, 0]])\r\n        sharpened = cv2.filter2D(eq, -1, kernel_sharpen)\r\n        return sharpened\r\n\r\n    def frangi_extract_vessels(self, preprocessed_image):\r\n        \"\"\"\r\n        Właściwe przetwarzanie obrazu:\r\n         - Zastosowanie filtru Frangi'ego do wykrycia naczyń.\r\n        \"\"\"\r\n        normalized = preprocessed_image / 255.0\r\n        vessel_enhanced = frangi(normalized)\r\n        return vessel_enhanced\r\n\r\n    def frangi_postprocess_vessel_image(self, vessel_image, threshold=0.2):\r\n        \"\"\"\r\n        Końcowe przetwarzanie obrazu:\r\n          - Progowanie wzmocnionego obrazu w celu uzyskania binarnej maski.\r\n          - Operacje morfologiczne (otwarcie i zamknięcie) dla redukcji szumów.\r\n        Zwraca binarną maskę wykrytych naczyń.\r\n        \"\"\"\r\n        binary_mask = (vessel_image > threshold).astype(np.uint8) * 255\r\n        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))\r\n        opened = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)\r\n        closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)\r\n        return closed\r\n\r\n    def show_frangi_result(self):\r\n        # Wywołanie pipeline'u filtru Frangi – poprawne nazwy funkcji\r\n        preprocessed = self.preprocess_image(self.image_array)\r\n        vessel_enhanced = self.frangi_extract_vessels(preprocessed)\r\n        mask = self.frangi_postprocess_vessel_image(vessel_enhanced, threshold=0.01)\r\n\r\n        # Konwersja do formatu PIL\r\n        result_image = Image.fromarray(mask)\r\n\r\n        # Skalowanie do rozmiaru canvasa\r\n        max_canvas_size = 400\r\n        img_width, img_height = result_image.size\r\n        scale = min(max_canvas_size / img_width, max_canvas_size / img_height)\r\n        new_size = (int(img_width * scale), int(img_height * scale))\r\n        result_resized = result_image.resize(new_size)\r\n\r\n        # Konwersja na PhotoImage i aktualizacja canvasa\r\n        self.predicted_image = ImageTk.PhotoImage(result_resized)\r\n        self.prediction_picture_canvas.delete(\"all\")\r\n        canvas_width = self.prediction_picture_canvas.winfo_width()\r\n        canvas_height = self.prediction_picture_canvas.winfo_height()\r\n        self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,\r\n                                                    image=self.predicted_image, anchor=tk.CENTER)\r\n\r\n    def extract_features(self, image):\r\n        \"\"\" Ekstrakcja cech z wycinka obrazu \"\"\"\r\n        # Wariancja kolorów\r\n        variance_r = np.var(image[:, :, 0])\r\n        variance_g = np.var(image[:, :, 1])\r\n        variance_b = np.var(image[:, :, 2])\r\n\r\n        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)\r\n\r\n        # Momenty centralne - sprawdzamy, czy moment zerowy nie jest równy 0\r\n        moments = moments_central(gray)\r\n        if moments[0, 0] == 0:\r\n            central_moment = 0\r\n        else:\r\n            central_moment = moments[0, 2] + moments[2, 0]\r\n\r\n        # Momenty Hu - dodajemy zabezpieczenie przed log(0) i NaN\r\n        hu_moments = moments_hu(moments)\r\n        hu_moments = -np.sign(hu_moments) * np.log10(np.abs(hu_moments) + 1e-10)\r\n        hu_moments = np.nan_to_num(hu_moments, nan=0.0, posinf=0.0, neginf=0.0)\r\n\r\n        # Histogram gradientów (HOG)\r\n       # hog_features, _ = hog(gray, pixels_per_cell=(8, 8), cells_per_block=(1, 1), visualize=True)\r\n\r\n        # Połączenie cech w jeden wektor\r\n        features = [variance_r, variance_g, variance_b, central_moment] + list(hu_moments)\r\n\r\n        return features\r\n\r\n    def predict(self):\r\n        \"\"\" Przewidywanie na podstawie modelu i wyświetlanie wyników \"\"\"\r\n        if self.image_array is None:\r\n            return\r\n\r\n        # Rozdzielamy obraz na fragmenty i wyciągamy cechy\r\n        window_size = 8\r\n        features = []\r\n        print(self.image_array.shape)\r\n        for i in range(4, self.image_array.shape[0] - 4, 4):\r\n            for j in range(4, self.image_array.shape[1] - 4, 4):\r\n                feature = self.extract_features(self.image_array[i - 4:i + 4, j - 4:j + 4])  # 8x8 okno\r\n                features.append(feature)\r\n            print(i)\r\n        features = np.array(features)\r\n\r\n        # Predykcja\r\n        print(features.shape)\r\n        predictions = self.clf.predict(features)\r\n        print(\"Unikalne wartości predykcji:\", np.unique(predictions))\r\n\r\n\r\n        # Przekształcenie predictions do uint8 przed użyciem\r\n        predictions = predictions.astype(np.uint8)\r\n\r\n        # Inicjalizacja obrazu predykcji (bez wartości w 3 kanałach kolorów)\r\n        prediction_image = np.zeros(self.image_array.shape[:2], dtype=np.uint8)\r\n\r\n        index = 0\r\n        for i in range(4, self.image_array.shape[0] - 4, 4):\r\n            for j in range(4, self.image_array.shape[1] - 4, 4):\r\n                prediction_image[i:i + 4, j:j + 4] = predictions[index]\r\n                index += 1\r\n\r\n        # Konwersja do formatu PIL\r\n        self.predicted_image_pil = Image.fromarray(prediction_image)\r\n\r\n        # Dopasowanie rozmiaru obrazu do wyświetlania\r\n        max_canvas_size = 400\r\n        img_width, img_height = self.predicted_image_pil.size\r\n        scale = min(max_canvas_size / img_width, max_canvas_size / img_height)\r\n        new_size = (int(img_width * scale), int(img_height * scale))\r\n\r\n        predicted_display_image = self.predicted_image_pil.resize(new_size)\r\n        self.predicted_image = ImageTk.PhotoImage(predicted_display_image)\r\n\r\n        # Upewnienie się, że Canvas ma poprawne wymiary\r\n        self.root.update()\r\n        canvas_width = self.prediction_picture_canvas.winfo_width()\r\n        canvas_height = self.prediction_picture_canvas.winfo_height()\r\n\r\n        self.prediction_picture_canvas.delete(\"all\")\r\n        self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,\r\n                                                    image=self.predicted_image, anchor=tk.CENTER)\r\n\r\n    def save_image(self):\r\n        if self.predicted_image_pil is None:\r\n            return  # Brak obrazu do zapisania\r\n\r\n        file_path = filedialog.asksaveasfilename(\r\n            defaultextension=\".png\",\r\n            filetypes=[(\"PNG files\", \"*.png\"), (\"JPEG files\", \"*.jpg\"), (\"BMP files\", \"*.bmp\")],\r\n            title=\"Zapisz obraz\"\r\n        )\r\n\r\n        if file_path:\r\n            self.predicted_image_pil.save(file_path)  # Zapisz obraz w wybranej lokalizacji\r\n\r\n    # Save the image\r\n    def load_image(self):\r\n        file_path = filedialog.askopenfilename(filetypes=[(\"Image Files\", \"*.png;*.jpg;*.bmp;*.dcm\")])\r\n        if not file_path:\r\n            return\r\n        image = Image.open(file_path)\r\n        self.image_array = np.array(image)\r\n        self.image = ImageTk.PhotoImage(image)\r\n\r\n\r\n        # żeby poprawnie wyświetlić obraz w Canvas jest on skalowany - jest to kopia niewykorzysywana do obliczeń\r\n        max_canvas_size = 400\r\n        img_width, img_height = image.size\r\n        scale = min(max_canvas_size / img_width, max_canvas_size / img_height)\r\n        new_size = (int(img_width * scale), int(img_height * scale))\r\n\r\n        display_image = image.resize(new_size)  # Skopiowana wersja do wyświetlania\r\n        self.image = ImageTk.PhotoImage(display_image)\r\n\r\n        # Wyśrodkowanie obrazu na Canvas\r\n        self.original_picture_canvas.delete(\"all\")\r\n        self.original_picture_canvas.create_image(200, 200, image=self.image, anchor=tk.CENTER)\r\n\r\n\r\n        self.pred_button.config(state=tk.NORMAL)\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\nif __name__ == \"__main__\":\r\n    root = tk.Tk()\r\n    app = DnoOka(root)\r\n    root.mainloop()\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/dnoOka.py b/dnoOka.py
+--- a/dnoOka.py	(revision f30ae4020548beab9ccb3574985b1b9b205f00de)
++++ b/dnoOka.py	(date 1741863242759)
+@@ -8,6 +8,8 @@
+ from skimage.feature import hog
+ from skimage.measure import moments_central, moments_hu
+ from skimage.filters import frangi
++from skimage.restoration import denoise_tv_chambolle
++from skimage.morphology import remove_small_objects
+ from sklearn.model_selection import train_test_split
+ from sklearn.ensemble import RandomForestClassifier
+ from sklearn.svm import SVC
+@@ -88,7 +90,7 @@
+ 
+         if selected_method_num == 1:
+             self.show_frangi_result()
+-        elif selected_method_num == 2:
++        elif selected_method == 2:
+             self.predict()
+ 
+         return
+@@ -109,10 +111,13 @@
+ 
+         eq = cv2.equalizeHist(blurred)
+ 
++        denoised = denoise_tv_chambolle(eq, weight=0.1)
++
++
+         kernel_sharpen = np.array([[0, -1, 0],
+                                    [-1, 5, -1],
+                                    [0, -1, 0]])
+-        sharpened = cv2.filter2D(eq, -1, kernel_sharpen)
++        sharpened = cv2.filter2D(denoised, -1, kernel_sharpen)
+         return sharpened
+ 
+     def frangi_extract_vessels(self, preprocessed_image):
+@@ -124,7 +129,7 @@
+         vessel_enhanced = frangi(normalized)
+         return vessel_enhanced
+ 
+-    def frangi_postprocess_vessel_image(self, vessel_image, threshold=0.2):
++    def frangi_postprocess_vessel_image(self, vessel_image, threshold):
+         """
+         Końcowe przetwarzanie obrazu:
+           - Progowanie wzmocnionego obrazu w celu uzyskania binarnej maski.
+@@ -132,19 +137,32 @@
+         Zwraca binarną maskę wykrytych naczyń.
+         """
+         binary_mask = (vessel_image > threshold).astype(np.uint8) * 255
++
+         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+         opened = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
+         closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
++
++
+         return closed
+ 
+     def show_frangi_result(self):
+         # Wywołanie pipeline'u filtru Frangi – poprawne nazwy funkcji
+         preprocessed = self.preprocess_image(self.image_array)
++
+         vessel_enhanced = self.frangi_extract_vessels(preprocessed)
+-        mask = self.frangi_postprocess_vessel_image(vessel_enhanced, threshold=0.01)
++
++        mask = self.frangi_postprocess_vessel_image(vessel_enhanced, threshold=0.001)
++        self.print_result(mask)
+ 
++        np_image_8bit = (mask * 255).astype(np.uint8)
++        self.predicted_image_pil = Image.fromarray(mask)
++
++
++
++
++    def print_result(self, picture):
+         # Konwersja do formatu PIL
+-        result_image = Image.fromarray(mask)
++        result_image = Image.fromarray(picture)
+ 
+         # Skalowanie do rozmiaru canvasa
+         max_canvas_size = 400
+@@ -160,6 +178,8 @@
+         canvas_height = self.prediction_picture_canvas.winfo_height()
+         self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,
+                                                     image=self.predicted_image, anchor=tk.CENTER)
++        self.prediction_picture_canvas.update_idletasks()  # Odświeżenie interfejsu Tkintera
++        time.sleep(0.01)  # Opóźnienie
+ 
+     def extract_features(self, image):
+         """ Ekstrakcja cech z wycinka obrazu """
+@@ -183,10 +203,10 @@
+         hu_moments = np.nan_to_num(hu_moments, nan=0.0, posinf=0.0, neginf=0.0)
+ 
+         # Histogram gradientów (HOG)
+-       # hog_features, _ = hog(gray, pixels_per_cell=(8, 8), cells_per_block=(1, 1), visualize=True)
++        hog_features, _ = hog(gray, pixels_per_cell=(8, 8), cells_per_block=(1, 1), visualize=True)
+ 
+         # Połączenie cech w jeden wektor
+-        features = [variance_r, variance_g, variance_b, central_moment] + list(hu_moments)
++        features = [variance_r, variance_g, variance_b, central_moment] + list(hu_moments) + list(hog_features[:10])
+ 
+         return features
+ 
+@@ -199,11 +219,11 @@
+         window_size = 8
+         features = []
+         print(self.image_array.shape)
+-        for i in range(4, self.image_array.shape[0] - 4, 4):
+-            for j in range(4, self.image_array.shape[1] - 4, 4):
++        for i in range(4, self.image_array.shape[0] - 4, window_size):
++            for j in range(4, self.image_array.shape[1] - 4, window_size):
+                 feature = self.extract_features(self.image_array[i - 4:i + 4, j - 4:j + 4])  # 8x8 okno
+                 features.append(feature)
+-            print(i)
++
+         features = np.array(features)
+ 
+         # Predykcja
+@@ -219,9 +239,9 @@
+         prediction_image = np.zeros(self.image_array.shape[:2], dtype=np.uint8)
+ 
+         index = 0
+-        for i in range(4, self.image_array.shape[0] - 4, 4):
+-            for j in range(4, self.image_array.shape[1] - 4, 4):
+-                prediction_image[i:i + 4, j:j + 4] = predictions[index]
++        for i in range(4, self.image_array.shape[0] - 4, window_size):
++            for j in range(4, self.image_array.shape[1] - 4, window_size):
++                prediction_image[i:i + window_size, j:j + window_size] = predictions[index]
+                 index += 1
+ 
+         # Konwersja do formatu PIL
+@@ -244,21 +264,16 @@
+         self.prediction_picture_canvas.delete("all")
+         self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,
+                                                     image=self.predicted_image, anchor=tk.CENTER)
+-
+-    def save_image(self):
+-        if self.predicted_image_pil is None:
+-            return  # Brak obrazu do zapisania
+-
+-        file_path = filedialog.asksaveasfilename(
++    def save_image(self):  # Convert NumPy array to PIL Image
++        # Pobierz nazwę pliku do zapisu
++        filename = filedialog.asksaveasfilename(
+             defaultextension=".png",
+-            filetypes=[("PNG files", "*.png"), ("JPEG files", "*.jpg"), ("BMP files", "*.bmp")],
+-            title="Zapisz obraz"
++            filetypes=[("Image Files", "*.png;*.jpg;*.bmp;*.dcm")],
++            title="Zapisz plik"
+         )
+-
+-        if file_path:
+-            self.predicted_image_pil.save(file_path)  # Zapisz obraz w wybranej lokalizacji
+-
+-    # Save the image
++        if not filename:
++            return
++        self.predicted_image_pil.save(filename)  # Save the image
+     def load_image(self):
+         file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.bmp;*.dcm")])
+         if not file_path:
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"AutoImportSettings\">\r\n    <option name=\"autoReloadType\" value=\"SELECTIVE\" />\r\n  </component>\r\n  <component name=\"ChangeListManager\">\r\n    <list default=\"true\" id=\"164f1f76-7dad-4b4a-afaf-22df2c8d0687\" name=\"Changes\" comment=\"\">\r\n      <change beforePath=\"$PROJECT_DIR$/dnoOka.py\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/dnoOka.py\" afterDir=\"false\" />\r\n      <change beforePath=\"$PROJECT_DIR$/trainModel.py\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/trainModel.py\" afterDir=\"false\" />\r\n    </list>\r\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\r\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\r\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\r\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\r\n  </component>\r\n  <component name=\"FileTemplateManagerImpl\">\r\n    <option name=\"RECENT_TEMPLATES\">\r\n      <list>\r\n        <option value=\"Python Script\" />\r\n      </list>\r\n    </option>\r\n  </component>\r\n  <component name=\"Git.Settings\">\r\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$\" />\r\n  </component>\r\n  <component name=\"MarkdownSettingsMigration\">\r\n    <option name=\"stateVersion\" value=\"1\" />\r\n  </component>\r\n  <component name=\"ProjectColorInfo\">{\r\n  &quot;associatedIndex&quot;: 5\r\n}</component>\r\n  <component name=\"ProjectId\" id=\"2u7ZJlbIar4S2xpSouOutF2cqJ4\" />\r\n  <component name=\"ProjectLevelVcsManager\" settingsEditedManually=\"true\" />\r\n  <component name=\"ProjectViewState\">\r\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\r\n    <option name=\"showLibraryContents\" value=\"true\" />\r\n  </component>\r\n  <component name=\"PropertiesComponent\">{\r\n  &quot;keyToString&quot;: {\r\n    &quot;Python.dnoOka.executor&quot;: &quot;Run&quot;,\r\n    &quot;Python.trainModel.executor&quot;: &quot;Run&quot;,\r\n    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,\r\n    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,\r\n    &quot;git-widget-placeholder&quot;: &quot;master&quot;,\r\n    &quot;last_opened_file_path&quot;: &quot;C:/Users/filip/PycharmProjects/DnoOka/.venv&quot;,\r\n    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,\r\n    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,\r\n    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,\r\n    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,\r\n    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,\r\n    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,\r\n    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;\r\n  }\r\n}</component>\r\n  <component name=\"RecentsManager\">\r\n    <key name=\"CopyFile.RECENT_KEYS\">\r\n      <recent name=\"C:\\Users\\filip\\PycharmProjects\\DnoOka\\.venv\" />\r\n    </key>\r\n    <key name=\"MoveFile.RECENT_KEYS\">\r\n      <recent name=\"C:\\Users\\filip\\PycharmProjects\\DnoOka\" />\r\n    </key>\r\n  </component>\r\n  <component name=\"RunManager\">\r\n    <configuration name=\"dnoOka\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\r\n      <module name=\"DnoOka\" />\r\n      <option name=\"ENV_FILES\" value=\"\" />\r\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\r\n      <option name=\"PARENT_ENVS\" value=\"true\" />\r\n      <envs>\r\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\r\n      </envs>\r\n      <option name=\"SDK_HOME\" value=\"\" />\r\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\r\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\r\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\r\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\r\n      <EXTENSION ID=\"PythonCoverageRunConfigurationExtension\" runner=\"coverage.py\" />\r\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/dnoOka.py\" />\r\n      <option name=\"PARAMETERS\" value=\"\" />\r\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\r\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\r\n      <option name=\"MODULE_MODE\" value=\"false\" />\r\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\r\n      <option name=\"INPUT_FILE\" value=\"\" />\r\n      <method v=\"2\" />\r\n    </configuration>\r\n    <recent_temporary>\r\n      <list>\r\n        <item itemvalue=\"Python.dnoOka\" />\r\n      </list>\r\n    </recent_temporary>\r\n  </component>\r\n  <component name=\"SharedIndexes\">\r\n    <attachedChunks>\r\n      <set>\r\n        <option value=\"bundled-js-predefined-d6986cc7102b-deb605915726-JavaScript-PY-243.22562.220\" />\r\n        <option value=\"bundled-python-sdk-0fc6c617c4bd-9a18a617cbe4-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-243.22562.220\" />\r\n      </set>\r\n    </attachedChunks>\r\n  </component>\r\n  <component name=\"SpellCheckerSettings\" RuntimeDictionaries=\"0\" Folders=\"0\" CustomDictionaries=\"0\" DefaultDictionary=\"application-level\" UseSingleDictionary=\"true\" transferred=\"true\" />\r\n  <component name=\"TaskManager\">\r\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\r\n      <changelist id=\"164f1f76-7dad-4b4a-afaf-22df2c8d0687\" name=\"Changes\" comment=\"\" />\r\n      <created>1741601503588</created>\r\n      <option name=\"number\" value=\"Default\" />\r\n      <option name=\"presentableId\" value=\"Default\" />\r\n      <updated>1741601503588</updated>\r\n      <workItem from=\"1741601504671\" duration=\"4680000\" />\r\n      <workItem from=\"1741613477232\" duration=\"1396000\" />\r\n      <workItem from=\"1741633715574\" duration=\"3843000\" />\r\n      <workItem from=\"1741701896585\" duration=\"11000\" />\r\n      <workItem from=\"1741712374226\" duration=\"5311000\" />\r\n    </task>\r\n    <servers />\r\n  </component>\r\n  <component name=\"TypeScriptGeneratedFilesManager\">\r\n    <option name=\"version\" value=\"3\" />\r\n  </component>\r\n  <component name=\"Vcs.Log.Tabs.Properties\">\r\n    <option name=\"TAB_STATES\">\r\n      <map>\r\n        <entry key=\"MAIN\">\r\n          <value>\r\n            <State />\r\n          </value>\r\n        </entry>\r\n      </map>\r\n    </option>\r\n  </component>\r\n  <component name=\"XDebuggerManager\">\r\n    <watches-manager>\r\n      <configuration name=\"PythonConfigurationType\">\r\n        <watch expression=\"i\" language=\"Python\" />\r\n        <watch expression=\"i\" language=\"Python\" />\r\n      </configuration>\r\n    </watches-manager>\r\n  </component>\r\n  <component name=\"com.intellij.coverage.CoverageDataManagerImpl\">\r\n    <SUITE FILE_PATH=\"coverage/DnoOka$trainModel.coverage\" NAME=\"trainModel Coverage Results\" MODIFIED=\"1741862893467\" SOURCE_PROVIDER=\"com.intellij.coverage.DefaultCoverageFileProvider\" RUNNER=\"coverage.py\" COVERAGE_BY_TEST_ENABLED=\"false\" COVERAGE_TRACING_ENABLED=\"false\" WORKING_DIRECTORY=\"$PROJECT_DIR$\" />\r\n    <SUITE FILE_PATH=\"coverage/DnoOka$dnoOka.coverage\" NAME=\"dnoOka Coverage Results\" MODIFIED=\"1741862999447\" SOURCE_PROVIDER=\"com.intellij.coverage.DefaultCoverageFileProvider\" RUNNER=\"coverage.py\" COVERAGE_BY_TEST_ENABLED=\"false\" COVERAGE_TRACING_ENABLED=\"false\" WORKING_DIRECTORY=\"$PROJECT_DIR$\" />\r\n  </component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision f30ae4020548beab9ccb3574985b1b9b205f00de)
++++ b/.idea/workspace.xml	(date 1741863265391)
+@@ -5,8 +5,9 @@
+   </component>
+   <component name="ChangeListManager">
+     <list default="true" id="164f1f76-7dad-4b4a-afaf-22df2c8d0687" name="Changes" comment="">
++      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/dnoOka.py" beforeDir="false" afterPath="$PROJECT_DIR$/dnoOka.py" afterDir="false" />
+-      <change beforePath="$PROJECT_DIR$/trainModel.py" beforeDir="false" afterPath="$PROJECT_DIR$/trainModel.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/plik.png" beforeDir="false" afterPath="$PROJECT_DIR$/plik.png" afterDir="false" />
+     </list>
+     <option name="SHOW_DIALOG" value="false" />
+     <option name="HIGHLIGHT_CONFLICTS" value="true" />
+@@ -129,6 +130,15 @@
+     </option>
+   </component>
+   <component name="XDebuggerManager">
++    <breakpoint-manager>
++      <breakpoints>
++        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
++          <url>file://$PROJECT_DIR$/trainModel.py</url>
++          <line>63</line>
++          <option name="timeStamp" value="1" />
++        </line-breakpoint>
++      </breakpoints>
++    </breakpoint-manager>
+     <watches-manager>
+       <configuration name="PythonConfigurationType">
+         <watch expression="i" language="Python" />
+@@ -136,8 +146,4 @@
+       </configuration>
+     </watches-manager>
+   </component>
+-  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+-    <SUITE FILE_PATH="coverage/DnoOka$trainModel.coverage" NAME="trainModel Coverage Results" MODIFIED="1741862893467" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+-    <SUITE FILE_PATH="coverage/DnoOka$dnoOka.coverage" NAME="dnoOka Coverage Results" MODIFIED="1741862999447" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+-  </component>
+ </project>
+\ No newline at end of file

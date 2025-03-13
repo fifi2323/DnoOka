@@ -90,7 +90,7 @@ class DnoOka:
 
         if selected_method_num == 1:
             self.show_frangi_result()
-        elif selected_method == 2:
+        elif selected_method_num == 2:
             self.predict()
 
         return
@@ -146,6 +146,7 @@ class DnoOka:
         return closed
 
     def show_frangi_result(self):
+        start = time.time()
         # Wywołanie pipeline'u filtru Frangi – poprawne nazwy funkcji
         preprocessed = self.preprocess_image(self.image_array)
 
@@ -156,7 +157,8 @@ class DnoOka:
 
         np_image_8bit = (mask * 255).astype(np.uint8)
         self.predicted_image_pil = Image.fromarray(mask)
-
+        stop = time.time()
+        print(f"Czas przetwarzania: {stop - start}")
 
 
 
@@ -203,10 +205,10 @@ class DnoOka:
         hu_moments = np.nan_to_num(hu_moments, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Histogram gradientów (HOG)
-        hog_features, _ = hog(gray, pixels_per_cell=(8, 8), cells_per_block=(1, 1), visualize=True)
+       # hog_features, _ = hog(gray, pixels_per_cell=(8, 8), cells_per_block=(1, 1), visualize=True)
 
         # Połączenie cech w jeden wektor
-        features = [variance_r, variance_g, variance_b, central_moment] + list(hu_moments) + list(hog_features[:10])
+        features = [variance_r, variance_g, variance_b, central_moment] + list(hu_moments)
 
         return features
 
@@ -214,16 +216,16 @@ class DnoOka:
         """ Przewidywanie na podstawie modelu i wyświetlanie wyników """
         if self.image_array is None:
             return
-
+        start = time.time()
         # Rozdzielamy obraz na fragmenty i wyciągamy cechy
         window_size = 8
         features = []
         print(self.image_array.shape)
-        for i in range(4, self.image_array.shape[0] - 4, window_size):
-            for j in range(4, self.image_array.shape[1] - 4, window_size):
+        for i in range(4, self.image_array.shape[0] - 4, 2):
+            for j in range(4, self.image_array.shape[1] - 4, 2):
                 feature = self.extract_features(self.image_array[i - 4:i + 4, j - 4:j + 4])  # 8x8 okno
                 features.append(feature)
-
+            print(i)
         features = np.array(features)
 
         # Predykcja
@@ -239,11 +241,13 @@ class DnoOka:
         prediction_image = np.zeros(self.image_array.shape[:2], dtype=np.uint8)
 
         index = 0
-        for i in range(4, self.image_array.shape[0] - 4, window_size):
-            for j in range(4, self.image_array.shape[1] - 4, window_size):
-                prediction_image[i:i + window_size, j:j + window_size] = predictions[index]
+        for i in range(4, self.image_array.shape[0] - 4, 2):
+            for j in range(4, self.image_array.shape[1] - 4, 2):
+                prediction_image[i:i + 2, j:j + 2] = predictions[index]
                 index += 1
 
+        stop = time.time()
+        print(f"Czas przetwarzania: {stop - start}")
         # Konwersja do formatu PIL
         self.predicted_image_pil = Image.fromarray(prediction_image)
 
