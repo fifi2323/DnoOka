@@ -8,6 +8,8 @@ import joblib
 from skimage.feature import hog
 from skimage.measure import moments_central, moments_hu
 from skimage.filters import frangi
+from skimage.restoration import denoise_tv_chambolle
+from skimage.morphology import remove_small_objects
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
@@ -109,10 +111,13 @@ class DnoOka:
 
         eq = cv2.equalizeHist(blurred)
 
+        denoised = denoise_tv_chambolle(eq, weight=0.1)
+
+
         kernel_sharpen = np.array([[0, -1, 0],
                                    [-1, 5, -1],
                                    [0, -1, 0]])
-        sharpened = cv2.filter2D(eq, -1, kernel_sharpen)
+        sharpened = cv2.filter2D(denoised, -1, kernel_sharpen)
         return sharpened
 
     def frangi_extract_vessels(self, preprocessed_image):
@@ -124,7 +129,7 @@ class DnoOka:
         vessel_enhanced = frangi(normalized)
         return vessel_enhanced
 
-    def frangi_postprocess_vessel_image(self, vessel_image, threshold=0.2):
+    def frangi_postprocess_vessel_image(self, vessel_image, threshold):
         """
         Końcowe przetwarzanie obrazu:
           - Progowanie wzmocnionego obrazu w celu uzyskania binarnej maski.
@@ -132,19 +137,32 @@ class DnoOka:
         Zwraca binarną maskę wykrytych naczyń.
         """
         binary_mask = (vessel_image > threshold).astype(np.uint8) * 255
+
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         opened = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
         closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+
+
         return closed
 
     def show_frangi_result(self):
         # Wywołanie pipeline'u filtru Frangi – poprawne nazwy funkcji
         preprocessed = self.preprocess_image(self.image_array)
-        vessel_enhanced = self.frangi_extract_vessels(preprocessed)
-        mask = self.frangi_postprocess_vessel_image(vessel_enhanced, threshold=0.01)
 
+        vessel_enhanced = self.frangi_extract_vessels(preprocessed)
+
+        mask = self.frangi_postprocess_vessel_image(vessel_enhanced, threshold=0.001)
+        self.print_result(mask)
+
+        np_image_8bit = (mask * 255).astype(np.uint8)
+        self.predicted_image_pil = Image.fromarray(mask)
+
+
+
+
+    def print_result(self, picture):
         # Konwersja do formatu PIL
-        result_image = Image.fromarray(mask)
+        result_image = Image.fromarray(picture)
 
         # Skalowanie do rozmiaru canvasa
         max_canvas_size = 400
@@ -160,6 +178,8 @@ class DnoOka:
         canvas_height = self.prediction_picture_canvas.winfo_height()
         self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,
                                                     image=self.predicted_image, anchor=tk.CENTER)
+        self.prediction_picture_canvas.update_idletasks()  # Odświeżenie interfejsu Tkintera
+        time.sleep(0.01)  # Opóźnienie
 
     def extract_features(self, image):
         """ Ekstrakcja cech z wycinka obrazu """
@@ -245,7 +265,15 @@ class DnoOka:
         self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,
                                                     image=self.predicted_image, anchor=tk.CENTER)
     def save_image(self):  # Convert NumPy array to PIL Image
-        self.predicted_image_pil.save('plik.png')  # Save the image
+        # Pobierz nazwę pliku do zapisu
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("Image Files", "*.png;*.jpg;*.bmp;*.dcm")],
+            title="Zapisz plik"
+        )
+        if not filename:
+            return
+        self.predicted_image_pil.save(filename)  # Save the image
     def load_image(self):
         file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.bmp;*.dcm")])
         if not file_path:
