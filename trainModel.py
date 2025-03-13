@@ -33,10 +33,10 @@ def extract_features(image):
     hu_moments = np.nan_to_num(hu_moments, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Histogram gradientów (HOG)
-    hog_features, _ = hog(gray, pixels_per_cell=(8, 8), cells_per_block=(1, 1), visualize=True)
+    #hog_features, _ = hog(gray, pixels_per_cell=(8, 8), cells_per_block=(1, 1), visualize=True)
 
     # Połączenie cech w jeden wektor
-    features = [variance_r, variance_g, variance_b, central_moment] + list(hu_moments) + list(hog_features[:10])
+    features = [variance_r, variance_g, variance_b, central_moment] + list(hu_moments)
 
 
     return features
@@ -44,13 +44,13 @@ def extract_features(image):
 X = []  # cechy
 y = []  # etykiety
 
-image_files = sorted(glob.glob("healthy/01_h.jpg"))  # Ścieżka do obrazów
-mask_files = sorted(glob.glob("healthy_vains/01_h.tif"))  # Ścieżka do masek eksperckich
+image_files = sorted(glob.glob("healthy/*.jpg"))  # Ścieżka do obrazów
+mask_files = sorted(glob.glob("healthy_vains/*.tif"))  # Ścieżka do masek eksperckich
 
 for img_path, mask_path in zip(image_files, mask_files):
     image = cv2.imread(img_path)
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-    num_samples = 500000  # Maksymalna liczba próbek na obraz
+    num_samples = 5000  # Maksymalna liczba próbek na obraz
     sampled_points = np.random.randint(4, image.shape[0] - 4, size=(num_samples, 2))
 
     for i, j in sampled_points:
