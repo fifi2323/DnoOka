@@ -16,6 +16,7 @@ from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
 import cv2
 from skimage.morphology import opening, closing, footprint_rectangle
+from tensorflow.keras.models import load_model
 class DnoOka:
     def __init__(self, root):
         self.predicted_image = None
@@ -28,7 +29,10 @@ class DnoOka:
         except FileNotFoundError:
             print("Nie znaleziono modelu! Upewnij się, że plik modelu jest w odpowiedniej lokalizacji.")
 
-
+        try:
+            self.unet_model = load_model('unet_retinal_vessel.h5')  # Load the U-Net model
+        except Exception as e:
+            print(f"Error loading U-Net model: {e}")
         # Ramka na wczytywanie obrazu i parametry
         self.control_frame = tk.Frame(root)
         self.control_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
@@ -92,6 +96,8 @@ class DnoOka:
             self.show_frangi_result()
         elif selected_method_num == 2:
             self.predict()
+        elif selected_method_num == 3:
+            self.unet_predict()
         elif selected_method_num == 4:
             self.pure_postprocessing(self.image_array)
         return
@@ -344,6 +350,67 @@ class DnoOka:
 
 
         self.pred_button.config(state=tk.NORMAL)
+
+    def unet_predict(self):
+        """ U-Net Prediction Method """
+        img = self.preprocess_unet_image(self.image_array)  # Preprocess the image (shape: (256, 256, 1))
+
+        # Add batch dimension (1, 256, 256, 1)
+        img = np.expand_dims(img, axis=0)
+
+        # Predict the segmentation mask
+        pred_mask = self.unet_model.predict(img)[0]  # Remove batch dimension
+
+        # Squeeze to remove any unnecessary dimensions, ensure it's 2D
+        pred_mask = np.squeeze(pred_mask)
+        print("Raw predictions (min, max):", pred_mask.min(), pred_mask.max())
+
+        # Apply thresholding (e.g., 0.5)
+        pred_mask = (pred_mask > 0.5).astype(np.uint8)
+        print("Thresholded predictions (min, max):", pred_mask.min(), pred_mask.max())
+
+        # Convert to PIL image (scale to 0-255 and convert to grayscale)
+        self.predicted_image_pil = Image.fromarray(pred_mask * 255).convert('L')
+        print("PIL image mode:", self.predicted_image_pil.mode)  # Should be 'L'
+
+        # Resize the image for display
+        max_canvas_size = 400
+        img_width, img_height = self.predicted_image_pil.size
+        scale = min(max_canvas_size / img_width, max_canvas_size / img_height)
+        new_size = (int(img_width * scale), int(img_height * scale))
+        predicted_display_image = self.predicted_image_pil.resize(new_size)
+        print("Resized size:", new_size)
+
+        # Convert to Tkinter PhotoImage
+        self.predicted_image = ImageTk.PhotoImage(predicted_display_image)
+        print("Tkinter PhotoImage:", self.predicted_image)
+
+        # Update canvas dimensions
+        self.prediction_picture_canvas.config(width=new_size[0], height=new_size[1])
+        self.root.update()  # Update the Tkinter root window
+
+        # Display the image on the canvas
+        self.prediction_picture_canvas.delete("all")
+        self.prediction_picture_canvas.create_image(
+            new_size[0] // 2, new_size[1] // 2,  # Center the image
+            image=self.predicted_image, anchor=tk.CENTER
+        )
+
+    def preprocess_unet_image(self, image_array, img_size=(256, 256)):
+        """
+        Preprocessing for U-Net:
+          - Convert to grayscale (if necessary).
+          - Resize the image to match U-Net input size.
+          - Normalize.
+        """
+        if len(image_array.shape) == 3 and image_array.shape[2] == 3:  # If RGB
+            img = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)  # Convert to grayscale
+        else:  # If already grayscale
+            img = image_array
+        img = cv2.resize(img, img_size)  # Resize to (256, 256)
+        img = img / 255.0  # Normalize
+        img = np.expand_dims(img, axis=-1)  # Add channel dimension (256, 256, 1)
+        return img  # Return shape (256, 256, 1)
 
 
 
