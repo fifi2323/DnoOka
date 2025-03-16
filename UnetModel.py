@@ -7,9 +7,9 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, UpSampling2D, concatenate, Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-
+from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
-
+from tensorflow.keras.metrics import MeanIoU
 def visualize_patches(patches, num_patches=10):
     """Visualize the extracted patches in a grid."""
     fig, axes = plt.subplots(1, num_patches, figsize=(15, 5))
@@ -128,6 +128,19 @@ train_masks = np.array(train_masks)
 train_images, val_images, train_masks, val_masks = train_test_split(
     train_images, train_masks, test_size=0.2, random_state=42
 )
+"""for x, y in zip(val_images, val_masks):
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.imshow(x.squeeze(), cmap='gray')
+    #plt.title(f"Patch {i}")
+    plt.axis('off')
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(y, cmap='gray')
+    #plt.title(f"Predicted Mask {i}")
+    plt.axis('off')
+
+    plt.show()"""
 
 # Reshape masks to match model output (H, W, 1)
 train_masks = train_masks.reshape(-1, 256, 256, 1)
@@ -135,7 +148,7 @@ val_masks = val_masks.reshape(-1, 256, 256, 1)
 
 # Model Training
 model = unet()
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[MeanIoU(num_classes=2)])
 model.summary()
 
 callbacks = [
@@ -143,7 +156,66 @@ callbacks = [
     ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5)
 ]
 
-history = model.fit(train_images, train_masks,
-                    validation_data=(val_images, val_masks),
-                    epochs=5, batch_size=8, callbacks=callbacks)  # Reduced batch size due to small dataset
-model.save("unet_retinal_vessel.h5")
+#history = model.fit(train_images, train_masks, validation_data=(val_images, val_masks), epochs=5, batch_size=8, callbacks=callbacks)  # Reduced batch size due to small dataset
+def visualize_predictions(model, images, masks, num_samples=5):
+    """Visualize model predictions on a few samples."""
+    indices = np.random.choice(len(images), num_samples, replace=False)
+    for i in indices:
+        # Get the image and mask
+        img = images[i]
+        true_mask = masks[i]
+
+        # Predict the mask
+        pred_mask = model.predict(np.expand_dims(img, axis=0))[0]
+        #pred_mask = (pred_mask > 0.1).astype(np.uint8)  # Apply threshold
+
+        # Display the results
+        plt.figure(figsize=(15, 5))
+        plt.subplot(1, 3, 1)
+        plt.imshow(img.squeeze(), cmap='gray')
+        plt.title("Input Image")
+        plt.axis('off')
+
+        plt.subplot(1, 3, 2)
+        plt.imshow(true_mask.squeeze(), cmap='gray')
+        plt.title("True Mask")
+        plt.axis('off')
+
+        plt.subplot(1, 3, 3)
+        plt.imshow(pred_mask.squeeze(), cmap='gray')
+        plt.title("Predicted Mask")
+        plt.axis('off')
+
+        plt.show()
+#unet_model = load_model('unet_retinal_vessel.h5')
+# Visualize predictions on the validation set
+visualize_predictions(model, val_images, val_masks, num_samples=5)
+#model.save("unet_retinal_vessel.h5")
+def plot_training_curves(history):
+    """Plot training and validation loss and accuracy."""
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.title('Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['accuracy'], label='Training Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.title('Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.show()
+
+
+# Plot training curves
+plot_training_curves(history)
+val_loss, val_accuracy = model.evaluate(val_images, val_masks)
+print(f"Validation Loss: {val_loss}")
+print(f"Validation Accuracy: {val_accuracy}")

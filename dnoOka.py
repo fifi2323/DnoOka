@@ -17,6 +17,7 @@ from sklearn.metrics import accuracy_score
 import cv2
 from skimage.morphology import opening, closing, footprint_rectangle
 from tensorflow.keras.models import load_model
+import matplotlib.pyplot as plt
 class DnoOka:
     def __init__(self, root):
         self.predicted_image = None
@@ -351,6 +352,7 @@ class DnoOka:
 
         self.pred_button.config(state=tk.NORMAL)
 
+
     def unet_predict(self):
         """ U-Net Prediction Method with Patch-based Processing """
 
@@ -365,9 +367,23 @@ class DnoOka:
             patch = np.expand_dims(patch, axis=0)  # Add batch dimension
             pred_mask = self.unet_model.predict(patch)[0]  # Remove batch dimension
             pred_mask = np.squeeze(pred_mask)  # Ensure it's 2D
-            print(pred_mask.min(), pred_mask.max())
+            print("Predicted mask range:", pred_mask.min(), pred_mask.max())
             pred_mask = (pred_mask > 0.1).astype(np.uint8)  # Thresholding
             pred_patches.append(pred_mask)
+
+            # Display the patch and its predicted mask
+            plt.figure(figsize=(10, 5))
+            plt.subplot(1, 2, 1)
+            plt.imshow(patch.squeeze(), cmap='gray')
+            plt.title(f"Patch {i}")
+            plt.axis('off')
+
+            plt.subplot(1, 2, 2)
+            plt.imshow(pred_mask, cmap='gray')
+            plt.title(f"Predicted Mask {i}")
+            plt.axis('off')
+
+            plt.show()
 
         # Reconstruct the full-size image from patches
         h, w = padded_size
@@ -378,9 +394,10 @@ class DnoOka:
             for j in range(0, w, patch_size):
                 full_mask[i:i + patch_size, j:j + patch_size] = pred_patches[idx]
                 idx += 1
-        print(full_mask)
-        print(full_mask.min(), full_mask.max())
-        print(sum(full_mask))
+
+        print("Full mask range:", full_mask.min(), full_mask.max())
+        print("Sum of full mask:", sum(full_mask))
+
         # Crop back to original image size
         full_mask = full_mask[:original_size[0], :original_size[1]]
 
