@@ -3,9 +3,20 @@ import glob
 import cv2
 import numpy as np
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, UpSampling2D, concatenate, Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+
+import matplotlib.pyplot as plt
+
+def visualize_patches(patches, num_patches=10):
+    """Visualize the extracted patches in a grid."""
+    fig, axes = plt.subplots(1, num_patches, figsize=(15, 5))
+    for i, patch in enumerate(patches):
+        axes[i].imshow(patch.squeeze(), cmap='gray')  # Remove channel dimension and display
+        axes[i].axis('off')  # Hide axes
+    plt.show()
 
 def unet(input_size=(256, 256, 1)):
     inputs = Input(input_size)
@@ -39,14 +50,56 @@ def unet(input_size=(256, 256, 1)):
     return Model(inputs, output)
 
 
-def preprocess_image(image_path, img_size=(256, 256)):
+def preprocess_image(image_path, image_path_mask, img_size=(256, 256), num_patches = 10):
+    """Load and preprocess an image into a fixed number of patches."""
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)  # Load grayscale
-    img = cv2.resize(img, img_size)  # Resize
-    img = img / 255.0  # Normalize
-    img = np.expand_dims(img, axis=-1)  # Add channel dimension (H, W, 1)
-    return img
+    img_mask = cv2.imread(image_path_mask, cv2.IMREAD_GRAYSCALE)  # Load grayscale
+
+    # Pad the image to ensure it is divisible by the patch size
+    h, w = img.shape
+    pad_h = (img_size[0] - h % img_size[0]) % img_size[0]
+    pad_w = (img_size[1] - w % img_size[1]) % img_size[1]
+
+    img = cv2.copyMakeBorder(img, 0, pad_h, 0, pad_w, cv2.BORDER_CONSTANT, value=0)
+
+    img_arr = []
+    patch_coords = []
+
+    # Generate random patch coordinates
+    for _ in range(num_patches):
+        i = np.random.randint(0, img.shape[0] - img_size[0] + 1)
+        j = np.random.randint(0, img.shape[1] - img_size[1] + 1)
+        patch_coords.append((i, j))
+
+    # Extract patches
+    for i, j in patch_coords:
+        temp = img[i:i + img_size[0], j:j + img_size[1]]
+        temp = temp / 255.0  # Normalize
+        temp = np.expand_dims(temp, axis=-1)  # Add channel dimension
+        img_arr.append(temp)
+
+    h, w = img_mask.shape
+    pad_h = (img_size[0] - h % img_size[0]) % img_size[0]
+    pad_w = (img_size[1] - w % img_size[1]) % img_size[1]
+
+    img_mask = cv2.copyMakeBorder(img_mask, 0, pad_h, 0, pad_w, cv2.BORDER_CONSTANT, value=0)
+
+    img_mask_arr = []
+
+    # Extract patches
+    for i, j in patch_coords:
+        temp = img_mask[i:i + img_size[0], j:j + img_size[1]]
+        temp = temp / 255.0  # Normalize
+        temp = np.expand_dims(temp, axis=-1)  # Add channel dimension
+        img_mask_arr.append(temp)
+
+    return img_arr, img_mask_arr
 
 
+print("TensorFlow Version:", tf.__version__)
+print("GPU Available:", tf.config.list_physical_devices('GPU'))
+
+# Load Data
 # Load Data
 train_images, train_masks = [], []
 val_images, val_masks = [], []
@@ -54,22 +107,27 @@ val_images, val_masks = [], []
 image_files = sorted(glob.glob("healthy/*.jpg"))  # Image path
 mask_files = sorted(glob.glob("healthy_vains/*.tif"))  # Expert mask path
 
-for img_path, mask_path in zip(image_files, mask_files):
-    img = preprocess_image(img_path)
-    mask = preprocess_image(mask_path)
+# Ensure the number of images and masks match
+if len(image_files) != len(mask_files):
+    raise ValueError("The number of images and masks must be the same.")
 
-    if len(train_images) < 13:
-        train_images.append(img)
-        train_masks.append(mask)
-    else:
-        val_images.append(img)
-        val_masks.append(mask)
+# Preprocess images and masks
+num_patches_per_image = 3 # Extract 1 patch per image
+for img_path, mask_path in zip(image_files, mask_files):
+    img_patches, mask_patches = preprocess_image(img_path, mask_path, num_patches=num_patches_per_image)
+   # visualize_patches(img_patches)
+    #visualize_patches(mask_patches)
+    train_images.extend(img_patches)
+    train_masks.extend(mask_patches)
 
 # Convert to NumPy arrays
 train_images = np.array(train_images)
 train_masks = np.array(train_masks)
-val_images = np.array(val_images)
-val_masks = np.array(val_masks)
+
+# Split data into training and validation sets
+train_images, val_images, train_masks, val_masks = train_test_split(
+    train_images, train_masks, test_size=0.2, random_state=42
+)
 
 # Reshape masks to match model output (H, W, 1)
 train_masks = train_masks.reshape(-1, 256, 256, 1)
@@ -87,5 +145,5 @@ callbacks = [
 
 history = model.fit(train_images, train_masks,
                     validation_data=(val_images, val_masks),
-                    epochs=50, batch_size=2, callbacks=callbacks)  # Reduced batch size due to small dataset
+                    epochs=5, batch_size=8, callbacks=callbacks)  # Reduced batch size due to small dataset
 model.save("unet_retinal_vessel.h5")
