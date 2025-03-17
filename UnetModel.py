@@ -10,6 +10,7 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 from tensorflow.keras.metrics import MeanIoU
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 def visualize_patches(patches, num_patches=10):
     """Visualize the extracted patches in a grid."""
@@ -53,7 +54,7 @@ def unet(input_size=(256, 256, 1)):
 
     return Model(inputs, output)
 
-def preprocess_image(image_path, image_path_mask, img_size=(512, 512)):
+def preprocess_image(image_path, image_path_mask, img_size=(256, 256)):
     """Load and preprocess an image into a fixed number of patches."""
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)  # Load grayscale
     img_mask = cv2.imread(image_path_mask, cv2.IMREAD_GRAYSCALE)  # Load grayscale
@@ -86,7 +87,7 @@ def preprocess_image(image_path, image_path_mask, img_size=(512, 512)):
         temp = img[i:i + img_size[0], j:j + img_size[1]]
         temp = temp / 255.0  # Normalize to [0, 1]
        # temp = normalize_brightness(temp)  # Normalize brightness
-        temp = cv2.resize(temp, (256, 256))
+        #temp = cv2.resize(temp, (256, 256))
         temp = np.expand_dims(temp, axis=-1)  # Add channel dimension
         img_arr.append(temp)
 
@@ -116,7 +117,7 @@ if len(image_files) != len(mask_files):
     raise ValueError("The number of images and masks must be the same.")
 
 
-for img_path, mask_path in zip(image_files, mask_files):
+for img_path, mask_path in zip(image_files[:5], mask_files[:5]):
     img_patches, mask_patches = preprocess_image(img_path, mask_path)
     visualize_patches(img_patches, 10)
     visualize_patches(mask_patches, 10)
@@ -142,12 +143,32 @@ model = unet()
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 model.summary()
 
+
 callbacks = [
     EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True),
-    ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5)
+    ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5),
+    ModelCheckpoint(
+    "model_epoch_{epoch:02d}.h5",  # Save model with epoch number in filename
+    save_freq='epoch',  # Save at the end of each epoch
+    save_weights_only=False,  # Save the entire model (not just weights)
+    verbose=1,
+    monitor="val_loss",  # Monitor validation loss
+    save_best_only=False  # Set to True if you want to save only the best model
+)
 ]
 
-history = model.fit(train_images, train_masks, validation_data=(val_images, val_masks), epochs=30, batch_size=8, callbacks=callbacks)  # Reduced batch size due to small dataset
+
+
+
+# Train the model
+history = model.fit(
+    train_images, train_masks,
+    validation_data=(val_images, val_masks),
+    epochs=30,
+    batch_size=8,
+    callbacks=callbacks  # Include the modified callbacks list
+)
+
 def visualize_predictions(model, images, masks, num_samples=5):
     """Visualize model predictions on a few samples."""
     indices = np.random.choice(len(images), num_samples, replace=False)
@@ -181,7 +202,7 @@ def visualize_predictions(model, images, masks, num_samples=5):
 
 # Visualize predictions on the validation set
 visualize_predictions(model, val_images, val_masks, num_samples=5)
-model.save("unet_retinal_vessel_huge_small_batch_single.h5")
+model.save("unet_retinal_vessel_very_huge.h5")
 def plot_training_curves(history):
     """Plot training and validation loss and accuracy."""
     plt.figure(figsize=(12, 5))
