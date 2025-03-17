@@ -20,6 +20,7 @@ from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 class DnoOka:
     def __init__(self, root):
+        self.predicted_image_pil = None
         self.predicted_image = None
         self.root = root
         self.root.title("Symulator Tomografu Komputerowego")
@@ -31,7 +32,7 @@ class DnoOka:
             print("Nie znaleziono modelu! Upewnij się, że plik modelu jest w odpowiedniej lokalizacji.")
 
         try:
-            self.unet_model = load_model('unet_retinal_vessel.h5')  # Load the U-Net model
+            self.unet_model = load_model("unet_retinal_vessel_huge_small_batch_single.h5")  # Load the U-Net model
         except Exception as e:
             print(f"Error loading U-Net model: {e}")
         # Ramka na wczytywanie obrazu i parametry
@@ -96,7 +97,7 @@ class DnoOka:
         if selected_method_num == 1:
             self.show_frangi_result()
         elif selected_method_num == 2:
-            self.predict()
+            self.random_forest_predict()
         elif selected_method_num == 3:
             self.unet_predict()
         elif selected_method_num == 4:
@@ -253,7 +254,7 @@ class DnoOka:
         opened = cv2.morphologyEx(prediction_image, cv2.MORPH_OPEN, kernel)
         closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
         return closed
-    def predict(self):
+    def random_forest_predict(self):
         """ Przewidywanie na podstawie modelu i wyświetlanie wyników """
         if self.image_array is None:
             return
@@ -273,7 +274,6 @@ class DnoOka:
         features = np.array(features)
 
         # Predykcja
-        print(features.shape)
         predictions = self.clf.predict(features)
         print("Unikalne wartości predykcji:", np.unique(predictions))
 
@@ -296,27 +296,10 @@ class DnoOka:
 
         stop = time.time()
         print(f"Czas przetwarzania: {stop - start}")
-
+        self.print_result(prediction_image)
         # Konwersja do formatu PIL
         self.predicted_image_pil = Image.fromarray(prediction_image)
 
-        # Dopasowanie rozmiaru obrazu do wyświetlania
-        max_canvas_size = 400
-        img_width, img_height = self.predicted_image_pil.size
-        scale = min(max_canvas_size / img_width, max_canvas_size / img_height)
-        new_size = (int(img_width * scale), int(img_height * scale))
-
-        predicted_display_image = self.predicted_image_pil.resize(new_size)
-        self.predicted_image = ImageTk.PhotoImage(predicted_display_image)
-
-        # Upewnienie się, że Canvas ma poprawne wymiary
-        self.root.update()
-        canvas_width = self.prediction_picture_canvas.winfo_width()
-        canvas_height = self.prediction_picture_canvas.winfo_height()
-
-        self.prediction_picture_canvas.delete("all")
-        self.prediction_picture_canvas.create_image(canvas_width // 2, canvas_height // 2,
-                                                    image=self.predicted_image, anchor=tk.CENTER)
     def save_image(self):  # Convert NumPy array to PIL Image
         # Pobierz nazwę pliku do zapisu
         filename = filedialog.asksaveasfilename(
@@ -352,6 +335,25 @@ class DnoOka:
 
         self.pred_button.config(state=tk.NORMAL)
 
+    def plot_unet_prediction(self, patch, pred_mask_t, pred_mask, i):
+        # Display the patch and its predicted mask
+        plt.figure(figsize=(10, 5))
+        plt.subplot(1, 3, 1)
+        plt.imshow(patch.squeeze(), cmap='gray')
+        plt.title(f"Patch {i}")
+        plt.axis('off')
+
+        plt.subplot(1, 3, 2)
+        plt.imshow(pred_mask, cmap='gray')
+        plt.title(f"Predicted Mask {i}")
+        plt.axis('off')
+
+        plt.subplot(1, 3, 3)
+        plt.imshow(pred_mask_t, cmap='gray')
+        plt.title(f"Predicted Mask after cutoff{i}")
+        plt.axis('off')
+
+        plt.show()
 
     def unet_predict(self):
         """ U-Net Prediction Method with Patch-based Processing """
@@ -368,22 +370,11 @@ class DnoOka:
             pred_mask = self.unet_model.predict(patch)[0]  # Remove batch dimension
             pred_mask = np.squeeze(pred_mask)  # Ensure it's 2D
             print("Predicted mask range:", pred_mask.min(), pred_mask.max())
-            pred_mask = (pred_mask > 0.1).astype(np.uint8)  # Thresholding
-            pred_patches.append(pred_mask)
+            pred_mask_t = (pred_mask > 0.2).astype(np.uint8)  # Thresholding
+            pred_mask_t = self.random_forest_postprocessing(pred_mask_t)
+            pred_patches.append(pred_mask_t)
 
-            # Display the patch and its predicted mask
-            plt.figure(figsize=(10, 5))
-            plt.subplot(1, 2, 1)
-            plt.imshow(patch.squeeze(), cmap='gray')
-            plt.title(f"Patch {i}")
-            plt.axis('off')
-
-            plt.subplot(1, 2, 2)
-            plt.imshow(pred_mask, cmap='gray')
-            plt.title(f"Predicted Mask {i}")
-            plt.axis('off')
-
-            plt.show()
+            self.plot_unet_prediction(patch, pred_mask_t, pred_mask, i)
 
         # Reconstruct the full-size image from patches
         h, w = padded_size
@@ -404,26 +395,8 @@ class DnoOka:
         # Convert to PIL image (scale to 0-255 and convert to grayscale)
         self.predicted_image_pil = Image.fromarray(full_mask * 255).convert('L')
 
-        # Resize for display
-        max_canvas_size = 400
-        img_width, img_height = self.predicted_image_pil.size
-        scale = min(max_canvas_size / img_width, max_canvas_size / img_height)
-        new_size = (int(img_width * scale), int(img_height * scale))
-        predicted_display_image = self.predicted_image_pil.resize(new_size)
+        self.print_result(full_mask * 255)
 
-        # Convert to Tkinter PhotoImage
-        self.predicted_image = ImageTk.PhotoImage(predicted_display_image)
-
-        # Update canvas dimensions
-        self.prediction_picture_canvas.config(width=new_size[0], height=new_size[1])
-        self.root.update()
-
-        # Display image on canvas
-        self.prediction_picture_canvas.delete("all")
-        self.prediction_picture_canvas.create_image(
-            new_size[0] // 2, new_size[1] // 2,  # Center image
-            image=self.predicted_image, anchor=tk.CENTER
-        )
 
     def preprocess_unet_image(self, image_array, img_size=(256, 256)):
         """ Preprocess Image: Padding & Splitting into Patches """
