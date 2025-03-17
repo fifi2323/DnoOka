@@ -32,7 +32,7 @@ class DnoOka:
             print("Nie znaleziono modelu! Upewnij się, że plik modelu jest w odpowiedniej lokalizacji.")
 
         try:
-            self.unet_model = load_model("unet_retinal_vessel_huge_small_batch_single.h5")  # Load the U-Net model
+            self.unet_model = load_model("model_epoch_23.h5")  # Load the U-Net model
         except Exception as e:
             print(f"Error loading U-Net model: {e}")
         # Ramka na wczytywanie obrazu i parametry
