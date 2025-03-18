@@ -13,7 +13,10 @@ from skimage.morphology import remove_small_objects
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score
+import numpy as np
+import tkinter as tk
+from tkinter import filedialog
 import cv2
 from skimage.morphology import opening, closing, footprint_rectangle
 from tensorflow.keras.models import load_model
@@ -32,7 +35,7 @@ class DnoOka:
             print("Nie znaleziono modelu! Upewnij się, że plik modelu jest w odpowiedniej lokalizacji.")
 
         try:
-            self.unet_model = load_model("model_epoch_23.h5")  # Load the U-Net model
+            self.unet_model = load_model("unet_retinal_vessel_huge_small_batch_single.h5")  # Load the U-Net model
         except Exception as e:
             print(f"Error loading U-Net model: {e}")
         # Ramka na wczytywanie obrazu i parametry
@@ -53,11 +56,16 @@ class DnoOka:
 
         # Przycisk do generowania predykcji
         self.pred_button = Button(self.control_frame, text="Znajdź naczynia", command=self.processing_method_choice)
-        self.pred_button.grid(row=0, column=1, padx=5, pady=5)
+        self.pred_button.grid(row=1, column=2, padx=5, pady=5)
 
         # Przycisk do zapisywania obrazu
         self.save_button = Button(self.control_frame, text="Zapisz obraz", command=self.save_image)
         self.save_button.grid(row=0, column=2, padx=5, pady=5)
+
+        # Przycisk do oceny jakosci
+        self.evaluate_button = tk.Button(self.control_frame, text="Oceń jakość", command=self.evaluate)
+        self.evaluate_button.grid(row=0, column=1, padx=5, pady=5)
+
 
         # Wybór sposobu przetwarzania
         # Etykieta obok listy
@@ -103,6 +111,55 @@ class DnoOka:
         elif selected_method_num == 4:
             self.pure_postprocessing(self.image_array)
         return
+
+    def analyze_performance(self, predicted, ground_truth):
+        """Oblicza statystyki jakości algorytmu."""
+        # Zamiana na wektory 1D
+        predicted = predicted.flatten()
+        ground_truth = ground_truth.flatten()
+
+        # Obliczenie macierzy pomyłek
+        tn, fp, fn, tp = confusion_matrix(ground_truth, predicted, labels=[0, 1]).ravel()
+
+        # Miary skuteczności
+        accuracy = accuracy_score(ground_truth, predicted)
+        sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+        mean_arithmetic = (sensitivity + specificity) / 2
+        mean_geometric = np.sqrt(sensitivity * specificity) if sensitivity * specificity > 0 else 0
+
+        return {
+            "Confusion Matrix": [[tn, fp], [fn, tp]],
+            "Accuracy": accuracy,
+            "Sensitivity": sensitivity,
+            "Specificity": specificity,
+            "Mean Arithmetic": mean_arithmetic,
+            "Mean Geometric": mean_geometric
+        }
+
+    def load_ground_truth(self):
+        """Wybór pliku z mapą prawdy referencyjnej."""
+        file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.bmp;*.tif")])
+        if not file_path:
+            return None
+        return cv2.imread(file_path, cv2.IMREAD_GRAYSCALE) // 255  # Konwersja do binarnego
+
+    def evaluate(self):
+        """Ładuje prawdę referencyjną, porównuje z predykcją i wyświetla wyniki."""
+        ground_truth = self.load_ground_truth()
+        if ground_truth is None or self.predicted_image_pil is None:
+            print("Błąd: Nie załadowano obrazu referencyjnego lub predykcji.")
+            return
+
+        predicted = np.array(self.predicted_image_pil.convert("L")) // 255  # Konwersja do binarnego
+        results = self.analyze_performance(predicted, ground_truth)
+
+        print("Macierz pomyłek:", results["Confusion Matrix"])
+        print(f"Accuracy: {results['Accuracy']:.4f}")
+        print(f"Sensitivity: {results['Sensitivity']:.4f}")
+        print(f"Specificity: {results['Specificity']:.4f}")
+        print(f"Mean Arithmetic: {results['Mean Arithmetic']:.4f}")
+        print(f"Mean Geometric: {results['Mean Geometric']:.4f}")
 
 
     def preprocess_image(self, image_array):
@@ -150,6 +207,14 @@ class DnoOka:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         opened = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel)
         closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+
+        # pixele które były czarne w oryginalnym obrazie pozostaną czarne
+        if self.image_array is not None:
+            if len(self.image_array.shape) == 3:
+                original_gray = cv2.cvtColor(self.image_array, cv2.COLOR_RGB2GRAY)
+            else:
+                original_gray = self.image_array
+            closed[original_gray == 0] = 0
 
 
         return closed
@@ -374,7 +439,7 @@ class DnoOka:
             pred_mask_t = self.random_forest_postprocessing(pred_mask_t)
             pred_patches.append(pred_mask_t)
 
-            self.plot_unet_prediction(patch, pred_mask_t, pred_mask, i)
+            # self.plot_unet_prediction(patch, pred_mask_t, pred_mask, i)
 
         # Reconstruct the full-size image from patches
         h, w = padded_size
