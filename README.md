@@ -127,7 +127,7 @@ def extract_features(image):
     return features
 ```
 ## Wstępne przetwarzanie zbioru uczącego
-Zbiór uczący jest podzielony na dane treningowe i testowe z użyciem train_test_split. Używa się 80% danych do treningu i 20% do testów.
+Zbiór uczący jest podzielony na dane treningowe i testowe z użyciem train_test_split. Używa się 80% danych do treningu i 20% do testów. Do nauki wykorzystywane jest 10 obrazów z bazy HRF, pozostałe 5 będzie służyło do weryfikacji poprawności modelu. 
 ```python
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 ```
@@ -188,7 +188,7 @@ def preprocess_image(image_path, image_path_mask, img_size=(512, 512)):
 ---
 
 ## Wstępne przetwarzanie zbioru uczącego
-- Dane obrazowe są dzielone na zbiór treningowy i walidacyjny w stosunku 80:20.
+- Dane obrazowe są dzielone na zbiór treningowy i walidacyjny w stosunku 80:20. Do nauki wykorzystywane jest 10 obrazów z bazy HRF, pozostałe 5 będzie służyło do weryfikacji poprawności modelu.
 - Maski są przekształcane do postaci akceptowalnej przez model U-Net (rozmiar 256x256x1).
 - Normalizacja wartości wejściowych pozwala na stabilniejsze trenowanie sieci neuronowej.
 
