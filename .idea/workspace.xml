@@ -5,9 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="164f1f76-7dad-4b4a-afaf-22df2c8d0687" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/DnoOka.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/DnoOka.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_13_03_2025_11_54__Changes_.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/shelf/Uncommitted_changes_before_Update_at_13_03_2025_11_54__Changes_.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UnetModel.py" beforeDir="false" afterPath="$PROJECT_DIR$/UnetModel.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dnoOka.py" beforeDir="false" afterPath="$PROJECT_DIR$/dnoOka.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/healthy/abc.png" beforeDir="false" afterPath="$PROJECT_DIR$/healthy/abc.png" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,7 +47,7 @@
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;unet&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/filip/PycharmProjects/DnoOka/.venv&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Studia/Semestr_6/TeoriaInformacjiKompresja&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -65,7 +68,6 @@
   <component name="RunManager">
     <configuration name="dnoOka" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="DnoOka" />
-      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -136,11 +138,6 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/trainModel.py</url>
-          <line>86</line>
-          <option name="timeStamp" value="1" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/UnetModel.py</url>
           <line>79</line>
           <option name="timeStamp" value="8" />
@@ -154,11 +151,5 @@
         <watch expression="sum(self.image_array[i, j, :])" language="Python" />
       </configuration>
     </watches-manager>
-  </component>
-  <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/DnoOka$trainModel.coverage" NAME="trainModel Coverage Results" MODIFIED="1742123963835" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/DnoOka$UnetModel.coverage" NAME="UnetModel Coverage Results" MODIFIED="1742207738332" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/DnoOka$dnoOka.coverage" NAME="dnoOka Coverage Results" MODIFIED="1742232389461" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/DnoOka$proba.coverage" NAME="proba Coverage Results" MODIFIED="1742159195917" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
