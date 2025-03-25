@@ -16,6 +16,12 @@ Projekt został stworzony za pomocą języka **Python 3.12**.
 - `joblib`  
 - `matplotlib`  
 # Przetwarzanie obrazów
+## Projekt implementuje 3 metody przetwarzania obrazów:
+1. **Filtr Frangi'ego
+2. **Klasyfikator random forest**
+3. **Model Unet**
+
+# Filtr Frangiego
 Proces wykrywania naczyń krwionośnych na obrazie składa się z następujących etapów:
 1. **Wstępne przetwarzanie obrazu**
 2. **Zastosowanie filtru Frangi'ego do wykrycia naczyń**
