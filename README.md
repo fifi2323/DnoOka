@@ -17,7 +17,7 @@ Projekt został stworzony za pomocą języka **Python 3.12**.
 - `matplotlib`  
 # Przetwarzanie obrazów
 ## Projekt implementuje 3 metody przetwarzania obrazów:
-1. **Filtr Frangi'ego
+1. **Filtr Frangi'ego**
 2. **Klasyfikator random forest**
 3. **Model Unet**
 
