@@ -310,8 +310,84 @@ Całość procesu została zweryfikowana poprzez testy *hold-out*, a uzyskane wy
 | Zdjęcie dna oka | Filtr Frangiego | Random Forest | UNet | Ground Truth |
 
 
+# Analiza wyników działania programu
+Legenda
+- f: Filtr Frangiego
+- rf: Random Forest
+- unet: UNet
+## Wyniki
+#### Obraz 1
+| Model | Confusion Matrix | Accuracy | Sensitivity | Specificity | Mean Arithmetic | Mean Geometric |
+|-------|------------------|----------|-------------|-------------|------------------|-----------------|
+| f     | [[7311956, 108632], [318131, 446625]] | 0.9479   | 0.5840      | 0.9854      | 0.7847           | 0.7586          |
+| rf    | [[7183939, 236649], [510250, 254506]] | 0.9088   | 0.3328      | 0.9681      | 0.6505           | 0.5676          |
+| unet  | [[7280079, 140509], [223175, 541581]] | 0.9556   | 0.7082      | 0.9811      | 0.8446           | 0.8335          |
 
+#### Obraz 2
+| Model | Confusion Matrix | Accuracy | Sensitivity | Specificity | Mean Arithmetic | Mean Geometric |
+|-------|------------------|----------|-------------|-------------|------------------|-----------------|
+| f     | [[7181412, 146221], [297366, 560345]] | 0.9458   | 0.6533      | 0.9800      | 0.8167           | 0.8002          |
+| rf    | [[7107890, 219743], [536649, 321062]] | 0.9076   | 0.3743      | 0.9700      | 0.6722           | 0.6026          |
+| unet  | [[7180297, 147336], [242340, 615371]] | 0.9524   | 0.7175      | 0.9799      | 0.8487           | 0.8385          |
 
+#### Obraz 3
+| Model | Confusion Matrix | Accuracy | Sensitivity | Specificity | Mean Arithmetic | Mean Geometric |
+|-------|------------------|----------|-------------|-------------|------------------|-----------------|
+| f     | [[7452584, 21351], [615358, 96051]] | 0.9222   | 0.1350      | 0.9971      | 0.5661           | 0.3669          |
+| rf    | [[7199138, 274797], [482618, 228791]] | 0.9075   | 0.3216      | 0.9632      | 0.6424           | 0.5566          |
+| unet  | [[7320696, 153239], [231990, 479419]] | 0.9529   | 0.6739      | 0.9795      | 0.8267           | 0.8125          |
+
+#### Obraz 4
+| Model | Confusion Matrix | Accuracy | Sensitivity | Specificity | Mean Arithmetic | Mean Geometric |
+|-------|------------------|----------|-------------|-------------|------------------|-----------------|
+| f     | [[7254613, 216677], [243366, 470688]] | 0.9438   | 0.6592      | 0.9710      | 0.8151           | 0.8000          |
+| rf    | [[7142680, 328610], [494606, 219448]] | 0.8994   | 0.3073      | 0.9560      | 0.6317           | 0.5420          |
+| unet  | [[7334199, 137091], [243140, 470914]] | 0.9535   | 0.6595      | 0.9817      | 0.8206           | 0.8046          |
+
+#### Obraz 5
+| Model | Confusion Matrix | Accuracy | Sensitivity | Specificity | Mean Arithmetic | Mean Geometric |
+|-------|------------------|----------|-------------|-------------|------------------|-----------------|
+| f     | - | 0.9331   | 0.2021      | 0.9953      | 0.5987           | 0.4485          |
+| rf    | [[7414476, 129623], [459200, 182045]] | 0.9281   | 0.2839      | 0.9828      | 0.6334           | 0.5282          |
+| unet  | [[7464987, 79112], [266979, 374266]] | 0.9577   | 0.5837      | 0.9895      | 0.7866           | 0.7600          |
+
+## Wnioski
+
+#### Podsumowanie wydajności:
+1. **Dokładność (Accuracy)**:
+   - UNet osiąga najwyższą dokładność (95.2-95.8%)
+   - Filtr Frangiego ma dobrą dokładność (92.2-94.8%)
+   - Random Forest nieco słabszy (89.9-92.8%)
+
+2. **Czułość (Sensitivity)**:
+   - UNet najlepiej wykrywa naczynia (58-72%)
+   - Filtr Frangiego - wyniki zmienne (13-66%)
+   - Random Forest ma problemy z wykrywaniem (28-37%)
+
+3. **Swoistość (Specificity)**:
+   - Wszystkie modele mają wysoką swoistość (>95%)
+   - Filtr Frangiego osiąga prawie idealną swoistość (97-99.7%)
+   - UNet niewiele gorszy (98-99%)
+
+---
+
+#### Wnioski kliniczne:
+1. **UNet**:
+   - Najlepszy kompromis między wykrywaniem naczyń a unikaniem fałszywych alarmów
+   - Najbardziej stabilny na różnych zestawach danych
+   - Zalecany do zastosowań wymagających precyzyjnej segmentacji
+
+2. **Filtr Frangiego**:
+   - Doskonały do wykluczania przypadków negatywnych (mało fałszywie pozytywnych)
+   - Może przegapiać niektóre naczynia (niska czułość w niektórych przypadkach)
+   - Przydatny w przesiewowych badaniach
+
+3. **Random Forest**:
+   - Najsłabsze wyniki w wykrywaniu naczyń
+   - Problemy z niezbalansowanymi klasami
+   - Wymaga optymalizacji dla tego zadania
+
+---
 
 
 
