@@ -277,3 +277,49 @@ print(f"Validation Accuracy: {val_accuracy}")
 - **Optymalizacja modelu** poprzez `EarlyStopping` i `ReduceLROnPlateau` zapobiega nadmiernemu dopasowaniu modelu i poprawia jakość segmentacji.
 
 Całość procesu została zweryfikowana poprzez testy *hold-out*, a uzyskane wyniki potwierdzają skuteczność zastosowanego podejścia.
+# Wizualizacja wyników działania programu
+## Obraz 1
+| ![Obraz 1](https://github.com/user-attachments/assets/91ede0b3-a25f-4cc3-82a1-398c7876ec53) | ![Obraz 2](https://github.com/user-attachments/assets/019638af-087a-4c4f-9ae9-63d88a0e074f) | ![11_rf](https://github.com/user-attachments/assets/5f8f0d45-c4d2-43b6-97d3-1f61f46e129d) | ![11_unet](https://github.com/user-attachments/assets/39c60dc7-f1c6-4bb3-b87c-0d563f0bf17d) | ![11_h](https://github.com/user-attachments/assets/d32c6af9-181f-4fe2-a7c7-14195f322f3e) | 
+|:--:|:--:|:--:|:--:|:--:|
+| Zdjęcie dna oka | Filtr Frangiego | Random Forest | UNet | Ground Truth |
+
+## Obraz 2
+| ![12_h](https://github.com/user-attachments/assets/e90041d5-18c6-48a3-818f-1b7e57f55310) | ![12_frangi](https://github.com/user-attachments/assets/5982d528-5c00-490a-9573-160d6d7b8981) | ![12_rf](https://github.com/user-attachments/assets/35118db7-6f42-4eed-ade2-779f94b6064f) | ![12_unet](https://github.com/user-attachments/assets/61b190b4-c928-45b1-b2b9-5eb1f7117f5a) | ![12_h_gt](https://github.com/user-attachments/assets/83b9c397-8200-46b9-82e7-948c64fe7b96) | 
+|:--:|:--:|:--:|:--:|:--:|
+| Zdjęcie dna oka | Filtr Frangiego | Random Forest | UNet | Ground Truth |
+
+## Obraz 3
+| ![13_h](https://github.com/user-attachments/assets/910c28ec-a564-4485-abce-383e9256db49) | ![13_frangi](https://github.com/user-attachments/assets/4907251a-f5b0-4c8e-ae13-9d870d30ebe9) | ![13_rf](https://github.com/user-attachments/assets/a694ab5b-4a33-46da-ab7b-6557a1070f87) | ![13_unet](https://github.com/user-attachments/assets/4775f35f-4414-4eab-8a3e-17425e23cfa4) | ![13_h_gt](https://github.com/user-attachments/assets/0626945d-97d9-4795-87e1-031027e4c5ed) | 
+|:--:|:--:|:--:|:--:|:--:|
+| Zdjęcie dna oka | Filtr Frangiego | Random Forest | UNet | Ground Truth |
+
+## Obraz 4
+| ![14_h](https://github.com/user-attachments/assets/5b055e09-8b5a-4088-b9d5-c035a8e9315f) | ![14_frangi](https://github.com/user-attachments/assets/aac5c5a6-1ac8-41da-a078-23c3ec82cd59) | ![14_rf](https://github.com/user-attachments/assets/4760558a-fb32-4eae-b0a0-db834681f3bc) | ![14_unet](https://github.com/user-attachments/assets/c357f315-2ed5-4ccd-88db-56e86985a44f) | ![14_h_gt](https://github.com/user-attachments/assets/3ae351ad-3cee-416b-951c-b244df0a018b) | 
+|:--:|:--:|:--:|:--:|:--:|
+| Zdjęcie dna oka | Filtr Frangiego | Random Forest | UNet | Ground Truth |
+
+## Obraz 5
+| ![15_h](https://github.com/user-attachments/assets/de23a935-26f0-4e8b-88c1-ff3c4598140d) | ![15_frangi](https://github.com/user-attachments/assets/699f3ddf-06f6-4b8c-bd19-ff096a632ac2) | ![15_rf](https://github.com/user-attachments/assets/5882c0cf-b0d8-49a7-9035-217843affca3) | ![15_unet](https://github.com/user-attachments/assets/7025e8af-90a9-4ba4-8511-d90dd8c7b573) | ![15_h_gt](https://github.com/user-attachments/assets/a1028ae2-8eb9-4029-95d3-ca1df1b26f4b) | 
+|:--:|:--:|:--:|:--:|:--:|
+| Zdjęcie dna oka | Filtr Frangiego | Random Forest | UNet | Ground Truth |
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
